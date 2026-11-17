@@ -11,6 +11,7 @@ Checks:
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -31,13 +32,20 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 
     fields: dict[str, str] = {}
     closed = False
+    key = None
     for line in lines[1:]:
         if line.strip() == "---":
             closed = True
             break
-        if ":" in line and not line.startswith((" ", "\t")):
+        if line.startswith((" ", "\t")):
+            # Continuation of a multi-line value (plain, `>` or `|` scalar).
+            if key is not None and line.strip():
+                fields[key] = f"{fields[key]} {line.strip()}".strip()
+        elif ":" in line:
             key, _, value = line.partition(":")
-            fields[key.strip()] = value.strip()
+            key = key.strip()
+            value = value.strip()
+            fields[key] = "" if re.fullmatch(r"[|>][-+0-9]*", value) else value
     if not closed:
         fail("skill.md frontmatter block is not closed with '---'")
     return fields
